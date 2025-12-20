@@ -4,7 +4,17 @@ OpenParsec is a simple, open-source Parsec client for iOS/iPadOS written in Swif
 
 This project is still a major WIP, so apologies for the currently lackluster documentation. I'm also very new to both Swift and SwiftUI so I'm sure there are many places for improvement.
 
-Before building, make sure you have the Parsec SDK framework symlinked or copied to the `Frameworks` folder. Builds were tested on Xcode Version 12.5.
+## Building
+
+Before building, make sure you have the Parsec SDK framework in the `Frameworks` folder. This is handled automatically via a git submodule:
+
+```bash
+git clone --recurse-submodules https://github.com/bartuf00/OpenParsec.git
+# Or if already cloned:
+git submodule update --init --recursive
+```
+
+Then open `OpenParsec.xcodeproj` in Xcode and build. The project is compatible with modern Xcode versions and requires iOS 14.0+.
 
 ## Touch Control
 You can set the touch mode you want to use in settings. Touchpad mode and direct touch mode are supported.
