@@ -196,7 +196,7 @@ class ParsecMetalRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         lastWidth = size.width
         lastHeight = size.height
-        CParsec.setFrame(view.bounds.width, view.bounds.height, view.contentScaleFactor)
+        CParsec.setFrame(size.width, size.height, view.contentScaleFactor)
     }
 
 
@@ -224,6 +224,12 @@ class ParsecMetalRenderer: NSObject, MTKViewDelegate {
                                                         options: [])
         encoder.setVertexBuffer(viewSizeBuffer, offset: 0, index: 0)
 
+        // 主螢幕不翻轉
+        var flip: UInt32 = 0
+        let flipBuffer = view.device!.makeBuffer(bytes: &flip,
+                                                 length: MemoryLayout<UInt32>.stride,
+                                                 options: [])
+        encoder.setVertexBuffer(flipBuffer, offset: 0, index: 1)
 
         var showText: UInt32 = SettingsHandler.shared.MetalText ? 1 : 0
 
@@ -248,7 +254,8 @@ class ParsecMetalRenderer: NSObject, MTKViewDelegate {
             if let pipTex = PictureInPictureManager.shared.metalCaptureTexture() {
                 let pipPass = MTLRenderPassDescriptor()
                 pipPass.colorAttachments[0].texture = pipTex
-                pipPass.colorAttachments[0].loadAction = .dontCare
+                pipPass.colorAttachments[0].loadAction = .clear
+                pipPass.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
                 pipPass.colorAttachments[0].storeAction = .store
 
                 if let pipEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: pipPass) {
@@ -259,6 +266,14 @@ class ParsecMetalRenderer: NSObject, MTKViewDelegate {
                                                                 length: MemoryLayout<SIMD2<Float>>.stride,
                                                                 options: [])
                     pipEncoder.setVertexBuffer(pipSizeBuffer, offset: 0, index: 0)
+
+                    // PiP 需要垂直翻轉（AVSampleBufferDisplayLayer 是左上原點）
+                    var pipFlip: UInt32 = 1
+                    let pipFlipBuffer = view.device!.makeBuffer(bytes: &pipFlip,
+                                                                length: MemoryLayout<UInt32>.stride,
+                                                                options: [])
+                    pipEncoder.setVertexBuffer(pipFlipBuffer, offset: 0, index: 1)
+
                     pipEncoder.setFragmentBuffer(showTextBuffer, offset: 0, index: 1)
                     pipEncoder.setFragmentTexture(yTex, index: 0)
                     pipEncoder.setFragmentTexture(uvTex, index: 1)

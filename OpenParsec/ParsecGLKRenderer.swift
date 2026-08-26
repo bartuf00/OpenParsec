@@ -67,6 +67,19 @@ class ParsecGLKRenderer:NSObject, GLKViewDelegate, GLKViewControllerDelegate
 		if #available(iOS 15.0, *) {
 			if PictureInPictureManager.shared.beginOpenGLCaptureFrame() {
 				CParsec.renderGLFrame(timeout: 0)
+
+				// 翻轉 FBO 內容：AVSampleBufferDisplayLayer 是左上原點，OpenGL 是左下原點
+				var captureFBO: GLint = 0
+				glGetIntegerv(GLenum(GL_FRAMEBUFFER_BINDING), &captureFBO)
+				let w = view.drawableWidth
+				let h = view.drawableHeight
+				glBindFramebuffer(GLenum(GL_READ_FRAMEBUFFER), GLuint(captureFBO))
+				glBindFramebuffer(GLenum(GL_DRAW_FRAMEBUFFER), GLuint(captureFBO))
+				glBlitFramebuffer(0, 0, w, h,
+								  0, h, w, 0,
+								  GLbitfield(GL_COLOR_BUFFER_BIT),
+								  GLenum(GL_LINEAR))
+
 				PictureInPictureManager.shared.endOpenGLCaptureFrame()
 			}
 		}

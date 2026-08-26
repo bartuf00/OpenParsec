@@ -7,8 +7,10 @@ struct VertexOut {
 };
 
 // 頂點着色器：保持 16:9 比例
+// flip=1 時垂直翻轉（PiP 用，因為 AVSampleBufferDisplayLayer 是左上原點）
 vertex VertexOut vertexPassthrough(uint vertexID [[vertex_id]],
-                                   constant float2 &viewSize [[buffer(0)]]) {
+                                   constant float2 &viewSize [[buffer(0)]],
+                                   constant uint &flip [[buffer(1)]]) {
     VertexOut out;
 
     float2 positions[4] = {
@@ -25,6 +27,14 @@ vertex VertexOut vertexPassthrough(uint vertexID [[vertex_id]],
         float2(1.0, 0.0)
     };
 
+    float2 tc = texCoords[vertexID];
+    float posY = positions[vertexID].y;
+
+    if (flip != 0) {
+        tc.y = 1.0 - tc.y;
+        posY = -posY;
+    }
+
     // 固定目標比例 16:9
     float targetAspect = 16.0 / 9.0;
     float viewAspect = viewSize.x / viewSize.y;
@@ -33,9 +43,9 @@ vertex VertexOut vertexPassthrough(uint vertexID [[vertex_id]],
     float scaleY = (viewAspect < targetAspect) ? viewAspect / targetAspect : 1.0;
 
     out.position = float4(positions[vertexID].x * scaleX,
-                          positions[vertexID].y * scaleY,
+                          posY * scaleY,
                           0.0, 1.0);
-    out.texCoord = texCoords[vertexID];
+    out.texCoord = tc;
     return out;
 }
 

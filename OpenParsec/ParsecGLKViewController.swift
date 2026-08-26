@@ -64,11 +64,13 @@ class ParsecGLKViewController : ParsecPlayground {
 			
 
 			if let glProvider = GLProvider {
-				glProvider.setup(width: Int(glkView.frame.width), height:Int(glkView.frame.height))
-			
+				// 用 drawableSize (pixels) 而非 frame (points)
+				let pipWidth = Int(glkView.drawableWidth)
+				let pipHeight = Int(glkView.drawableHeight)
+				glProvider.setup(width: pipWidth, height: pipHeight)
 			
 
-				write_log_from_swift("GLProvider setup with width: \(glkView.frame.width), height: \(glkView.frame.height)")
+				write_log_from_swift("GLProvider setup with width: \(pipWidth), height: \(pipHeight)")
 
 				if SettingsHandler.shared.enablePiP {
 					// ✅ PiP setup 設置

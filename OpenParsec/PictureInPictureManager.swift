@@ -203,10 +203,8 @@ class PictureInPictureManager: NSObject {
         let layer = AVSampleBufferDisplayLayer()
         layer.videoGravity = .resizeAspect
 
-        let containerView = UIView(frame: sourceView.bounds)
+        let containerView = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         containerView.isUserInteractionEnabled = false
-
-        containerView.frame = CGRect(x: -9999, y: -9999, width: 1, height: 1)
 
         containerView.layer.addSublayer(layer)
         layer.frame = containerView.bounds
