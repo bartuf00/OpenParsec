@@ -137,7 +137,7 @@ final class MetalCaptureSurfaceProvider: CaptureSurfaceProvider {
 
         // The texture-cache variant is shader-read only and cannot be used as a render
         // target — create an explicit IOSurface-backed texture we are allowed to draw into.
-        guard let ioSurface = CVPixelBufferGetIOSurface(pixelBuffer) else { return }
+        guard let ioSurface = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue() else { return }
         let desc = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: .bgra8Unorm,
             width: width,
