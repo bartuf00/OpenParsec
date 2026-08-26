@@ -375,6 +375,17 @@ struct ParsecView: View
 					.frame(maxWidth:.infinity)
 					.multilineTextAlignment(.center)
 			}
+			if #available(iOS 15.0, *), settings.enablePiP {
+				Button(action: {
+					showMenu = false
+					PictureInPictureManager.shared.startPiP()
+				}) {
+					Text("Picture in Picture")
+						.padding(8)
+						.frame(maxWidth:.infinity)
+						.multilineTextAlignment(.center)
+				}
+			}
 			Rectangle()
 				.fill(Color("Foreground"))
 				.opacity(0.25)

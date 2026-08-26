@@ -290,12 +290,14 @@ class PictureInPictureManager: NSObject {
     func startPiP() {
         guard isSetup, let controller = pipController,
               !isPiPActive, !isStarting else { return }
-        isStarting = true
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            controller.startPictureInPicture()
+        guard controller.isPictureInPicturePossible else {
+            write_log_from_swift("PiP not possible right now")
+            return
         }
 
+        isStarting = true
+        controller.startPictureInPicture()
     }
 
     func stopPiP() {
@@ -303,6 +305,11 @@ class PictureInPictureManager: NSObject {
               isPiPActive else { return }
         isStarting = false
         controller.stopPictureInPicture()
+    }
+
+    func metalCaptureTexture() -> MTLTexture? {
+        guard let provider = captureProvider as? MetalCaptureSurfaceProvider else { return nil }
+        return provider.getMTLTexture()
     }
 
     // MARK: - Cleanup

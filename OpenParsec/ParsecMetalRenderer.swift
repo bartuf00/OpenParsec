@@ -243,6 +243,33 @@ class ParsecMetalRenderer: NSObject, MTKViewDelegate {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
 
         encoder.endEncoding()
+
+        if #available(iOS 15.0, *) {
+            if let pipTex = PictureInPictureManager.shared.metalCaptureTexture() {
+                let pipPass = MTLRenderPassDescriptor()
+                pipPass.colorAttachments[0].texture = pipTex
+                pipPass.colorAttachments[0].loadAction = .dontCare
+                pipPass.colorAttachments[0].storeAction = .store
+
+                if let pipEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: pipPass) {
+                    pipEncoder.setRenderPipelineState(pipelineState)
+
+                    var pipSize = SIMD2<Float>(Float(pipTex.width), Float(pipTex.height))
+                    let pipSizeBuffer = view.device!.makeBuffer(bytes: &pipSize,
+                                                                length: MemoryLayout<SIMD2<Float>>.stride,
+                                                                options: [])
+                    pipEncoder.setVertexBuffer(pipSizeBuffer, offset: 0, index: 0)
+                    pipEncoder.setFragmentBuffer(showTextBuffer, offset: 0, index: 1)
+                    pipEncoder.setFragmentTexture(yTex, index: 0)
+                    pipEncoder.setFragmentTexture(uvTex, index: 1)
+                    pipEncoder.setFragmentTexture(textTex, index: 2)
+
+                    pipEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                    pipEncoder.endEncoding()
+                }
+            }
+        }
+
         commandBuffer.present(drawable)
 
         commandBuffer.addCompletedHandler { [self] _ in

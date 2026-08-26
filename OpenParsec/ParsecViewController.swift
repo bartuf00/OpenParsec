@@ -575,7 +575,14 @@ class ParsecViewController :UIViewController, UIScrollViewDelegate {
 		}
 
 	}
-	
+
+	override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+		CParsec.sendReleaseMessage()
+		stopKeyRepeat()
+		optCmdRemapActive = false
+		altKeyHeld = false
+	}
+
 	@objc func keyboardWillShow(notification: NSNotification) {
 		if let keyboardFrame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
             let height = keyboardFrame.height

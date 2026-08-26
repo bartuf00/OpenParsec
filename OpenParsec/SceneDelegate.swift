@@ -72,43 +72,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate
 
 	func sceneDidEnterBackground(_ scene: UIScene)
 	{
-		// Called as the scene transitions from the foreground to the background.
-		// Use this method to save data, release shared resources, and store enough scene-specific state information
-		// to restore the scene back to its current state.
-
-		var pipAttempted = false
-		if #available(iOS 15.0, *) {
-			
-			guard SettingsHandler.shared.enablePiP else {
-				write_log_from_swift("PiP disabled in settings, not starting PiP.")
-				return
-			}
-
-			if ParsecBackgroundManager.shared.hasActiveConnection {
-				PictureInPictureManager.shared.startPiP()
-				pipAttempted = PictureInPictureManager.shared.isPiPActive || PictureInPictureManager.shared.isStarting
-
-				write_log_from_swift("Attempted PiP start: \(pipAttempted ? "success" : "failure")")
-				if pipAttempted {
-					write_log_from_swift("PiP started successfully.")
-				} else {
-					write_log_from_swift("PiP failed to start.")
-				}
-
-
-			}
-
-		}
-		
-
-			if !pipAttempted && ParsecBackgroundManager.shared.hasActiveConnection {
-				write_log_from_swift("PiP not attempted, sending release message for background state.")
-			}
-
-			ParsecBackgroundManager.shared.sceneDidEnterBackground()
-
-		
-		
+		// PiP is only started from the user's menu button. Backgrounding without an active
+		// PiP session lets ParsecBackgroundManager mark the connection for reconnect.
+		ParsecBackgroundManager.shared.sceneDidEnterBackground()
 	}
 
 }
