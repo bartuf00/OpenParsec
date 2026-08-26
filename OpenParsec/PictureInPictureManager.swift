@@ -5,6 +5,7 @@ import OpenGLES
 import GLKit
 import MetalKit
 import CoreMedia
+import IOSurface
 
 
 
@@ -23,6 +24,8 @@ final class GLCaptureSurfaceProvider: CaptureSurfaceProvider {
     private var cvTexture: CVOpenGLESTexture?
     private var captureFBO: GLuint = 0
     private var glContext: EAGLContext
+    private var prevFramebuffer: GLint = 0
+    private var prevViewport: [GLint] = [0, 0, 0, 0]
 
     init(glContext: EAGLContext) {
         self.glContext = glContext
@@ -85,18 +88,34 @@ final class GLCaptureSurfaceProvider: CaptureSurfaceProvider {
     func getPixelBuffer() -> CVPixelBuffer? {
         return pixelBuffer
     }
+
+    /// Binds the capture FBO (must be called on the GL render context).
+    /// Returns capture size, or nil when the capture surface is unavailable.
+    func beginCaptureFrame() -> CGSize? {
+        guard captureFBO != 0, let pb = pixelBuffer else { return nil }
+        glGetIntegerv(GLenum(GL_FRAMEBUFFER_BINDING), &prevFramebuffer)
+        glGetIntegerv(GLenum(GL_VIEWPORT), &prevViewport)
+        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), captureFBO)
+        let w = GLsizei(CVPixelBufferGetWidth(pb))
+        let h = GLsizei(CVPixelBufferGetHeight(pb))
+        glViewport(0, 0, w, h)
+        return CGSize(width: Int(w), height: Int(h))
+    }
+
+    func endCaptureFrame() {
+        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), GLuint(prevFramebuffer))
+        glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3])
+    }
 }
 
 // MARK: - Picture in Picture Manager for Metal
 final class MetalCaptureSurfaceProvider: CaptureSurfaceProvider {
-    private var textureCache: CVMetalTextureCache?
     private var pixelBuffer: CVPixelBuffer?
-    private var cvTexture: CVMetalTexture?
+    private var mtlTexture: MTLTexture?
     private var device: MTLDevice
 
     init(device: MTLDevice) {
         self.device = device
-        CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
     }
 
     func setup(width: Int, height: Int) {
@@ -116,24 +135,22 @@ final class MetalCaptureSurfaceProvider: CaptureSurfaceProvider {
         guard let pixelBuffer = pb else { return }
         self.pixelBuffer = pixelBuffer
 
-        var cvTex: CVMetalTexture?
-        CVMetalTextureCacheCreateTextureFromImage(
-            kCFAllocatorDefault,
-            textureCache!,
-            pixelBuffer,
-            nil,
-            .bgra8Unorm,
-            width,
-            height,
-            0,
-            &cvTex
+        // The texture-cache variant is shader-read only and cannot be used as a render
+        // target — create an explicit IOSurface-backed texture we are allowed to draw into.
+        guard let ioSurface = CVPixelBufferGetIOSurface(pixelBuffer) else { return }
+        let desc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .bgra8Unorm,
+            width: width,
+            height: height,
+            mipmapped: false
         )
-        guard let cvTexture = cvTex else { return }
-        self.cvTexture = cvTexture
+        desc.usage = [.shaderRead, .renderTarget]
+        desc.storageMode = .shared
+        self.mtlTexture = device.makeTexture(descriptor: desc, iosurface: ioSurface, plane: 0)
     }
 
     func destroy() {
-        cvTexture = nil
+        mtlTexture = nil
         pixelBuffer = nil
     }
 
@@ -142,7 +159,7 @@ final class MetalCaptureSurfaceProvider: CaptureSurfaceProvider {
     }
 
     func getMTLTexture() -> MTLTexture? {
-        return cvTexture != nil ? CVMetalTextureGetTexture(cvTexture!) : nil
+        return mtlTexture
     }
 }
 
@@ -159,8 +176,9 @@ class PictureInPictureManager: NSObject {
     private var captureProvider: CaptureSurfaceProvider?
     private var cachedFormatDescription: CMVideoFormatDescription?
 
-    private var displayLink: CADisplayLink?
+    private var frameTimer: DispatchSourceTimer?
     private var currentPTS: CMTime = .zero
+    private var lastFormattedBuffer: CVPixelBuffer?
 
     private(set) var isPiPActive = false
     private(set) var isStarting = false
@@ -206,7 +224,6 @@ class PictureInPictureManager: NSObject {
         controller.canStartPictureInPictureAutomaticallyFromInline = false
         self.pipController = controller
 
-        startFramePump()
         isSetup = true
 
     }
@@ -218,34 +235,39 @@ class PictureInPictureManager: NSObject {
 
         currentPTS = .zero
 
-        let link = CADisplayLink(target: self, selector: #selector(renderFrame))
-        link.preferredFramesPerSecond = 30
-        link.add(to: .main, forMode: .common)
-
-        displayLink = link
+        // GCD timer instead of CADisplayLink: display links never fire once the app is
+        // backgrounded, which would freeze the PiP window on the last frame.
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now(), repeating: 1.0 / 30.0)
+        timer.setEventHandler { [weak self] in
+            self?.renderFrame()
+        }
+        timer.resume()
+        frameTimer = timer
     }
 
     private func stopFramePump() {
-        displayLink?.invalidate()
-        displayLink = nil
+        frameTimer?.cancel()
+        frameTimer = nil
     }
 
 
     // MARK: PIP 繪製
-    @objc
     private func renderFrame() {
         guard let pixelBuffer = captureProvider?.getPixelBuffer(),
             let layer = sampleBufferDisplayLayer else {
             return
         }
 
-        // 建立 format description
-        if cachedFormatDescription == nil {
+        // 建立 format description；buffer 被重建（尺寸變更）時一併重建
+        if cachedFormatDescription == nil || lastFormattedBuffer !== pixelBuffer {
+            cachedFormatDescription = nil
             CMVideoFormatDescriptionCreateForImageBuffer(
                 allocator: kCFAllocatorDefault,
                 imageBuffer: pixelBuffer,
                 formatDescriptionOut: &cachedFormatDescription
             )
+            lastFormattedBuffer = pixelBuffer
         }
 
         guard let format = cachedFormatDescription else {
@@ -297,6 +319,7 @@ class PictureInPictureManager: NSObject {
         }
 
         isStarting = true
+        startFramePump()
         controller.startPictureInPicture()
     }
 
@@ -305,6 +328,17 @@ class PictureInPictureManager: NSObject {
               isPiPActive else { return }
         isStarting = false
         controller.stopPictureInPicture()
+    }
+
+    /// Binds the GL capture FBO on the current (render) context; pair with endOpenGLCaptureFrame().
+    @discardableResult
+    func beginOpenGLCaptureFrame() -> Bool {
+        guard let provider = captureProvider as? GLCaptureSurfaceProvider else { return false }
+        return provider.beginCaptureFrame() != nil
+    }
+
+    func endOpenGLCaptureFrame() {
+        (captureProvider as? GLCaptureSurfaceProvider)?.endCaptureFrame()
     }
 
     func metalCaptureTexture() -> MTLTexture? {
@@ -357,6 +391,7 @@ extension PictureInPictureManager: AVPictureInPictureControllerDelegate {
 
     func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
         isPiPActive = false
+        stopFramePump()
         onPiPStopped?()
 
         write_log_from_swift("PiP did stop")
@@ -374,6 +409,7 @@ extension PictureInPictureManager: AVPictureInPictureControllerDelegate {
                                     failedToStartPictureInPictureWithError error: Error) {
         isPiPActive = false
         isStarting = false
+        stopFramePump()
         onPiPStartFailed?()
 
         write_log_from_swift("PiP failed to start: \(error.localizedDescription)")

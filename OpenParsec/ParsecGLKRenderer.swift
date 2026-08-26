@@ -64,7 +64,12 @@ class ParsecGLKRenderer:NSObject, GLKViewDelegate, GLKViewControllerDelegate
 
 		CParsec.renderGLFrame(timeout: timeout)
 
-		
+		if #available(iOS 15.0, *) {
+			if PictureInPictureManager.shared.beginOpenGLCaptureFrame() {
+				CParsec.renderGLFrame(timeout: 0)
+				PictureInPictureManager.shared.endOpenGLCaptureFrame()
+			}
+		}
 
 		updateImage()
 	}

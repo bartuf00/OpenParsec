@@ -22,6 +22,7 @@ class ParsecViewController :UIViewController, UIScrollViewDelegate {
 	var renderer: ParsecRenderer?   // typealias ParsecPlayground & ParsecRenderController
 
 	var panLockedByKeyboard = false
+	private var contentOffsetBeforeKeyboard: CGPoint = .zero
 
 
 	func createRenderer(type: RendererType) -> ParsecRenderer {
@@ -586,6 +587,11 @@ class ParsecViewController :UIViewController, UIScrollViewDelegate {
 	@objc func keyboardWillShow(notification: NSNotification) {
 		if let keyboardFrame = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
             let height = keyboardFrame.height
+
+			if !keyboardVisible {
+				contentOffsetBeforeKeyboard = scrollView.contentOffset
+			}
+
 			keyboardHeight = height
 
             keyboardVisible = true
@@ -621,6 +627,8 @@ class ParsecViewController :UIViewController, UIScrollViewDelegate {
 	}
 
 	@objc func keyboardWillHide(notification: NSNotification) {
+		let wasVisible = keyboardVisible
+
 		keyboardHeight = 0.0
         keyboardVisible = false
 
@@ -635,20 +643,17 @@ class ParsecViewController :UIViewController, UIScrollViewDelegate {
 			right: 0
 		)
 
+		scrollView.scrollIndicatorInsets = scrollView.contentInset
+
         // Transform cleanup (just in case)
         view.transform = .identity
-        
-        // Automatic scroll down in landscape mode (reverse of show)
-        if view.bounds.width > view.bounds.height {
-             // We subtract, but clamp to 0 (or valid range)
-			let newOffsetY = max(0, scrollView.contentOffset.y - ((notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0.0))
-             // Or maybe just clamp to valid range without forcing a subtract?
-             // User said "bajar la altura", implying a reverse scroll.
 
-
-			scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: newOffsetY), animated: true)
-
+        // Restore the exact pre-keyboard offset (portrait included — the old code only
+        // scrolled back in landscape, which left the view shifted down after closing).
+        if wasVisible {
+            scrollView.setContentOffset(contentOffsetBeforeKeyboard, animated: true)
         }
+
 		onKeyboardVisibilityChanged?(false)
 	}
 	
