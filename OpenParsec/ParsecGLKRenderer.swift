@@ -71,8 +71,8 @@ class ParsecGLKRenderer:NSObject, GLKViewDelegate, GLKViewControllerDelegate
 				// 翻轉 FBO 內容：AVSampleBufferDisplayLayer 是左上原點，OpenGL 是左下原點
 				var captureFBO: GLint = 0
 				glGetIntegerv(GLenum(GL_FRAMEBUFFER_BINDING), &captureFBO)
-				let w = view.drawableWidth
-				let h = view.drawableHeight
+				let w = GLint(view.drawableWidth)
+				let h = GLint(view.drawableHeight)
 				glBindFramebuffer(GLenum(GL_READ_FRAMEBUFFER), GLuint(captureFBO))
 				glBindFramebuffer(GLenum(GL_DRAW_FRAMEBUFFER), GLuint(captureFBO))
 				glBlitFramebuffer(0, 0, w, h,
