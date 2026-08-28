@@ -193,7 +193,8 @@ jobs:
     name: Nightly Release
     permissions:
       contents: write
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.release__nightly == 'true') || (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.repository.default_branch) || github.ref == 'refs/heads/patch-1')) }}
+    # Release on default-branch push or manual dispatch (dispatch inputs are unreliable on this fork).
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.repository.default_branch)) }}
     runs-on: ubuntu-latest
     needs: [package]
     concurrency:
