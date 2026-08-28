@@ -194,7 +194,7 @@ jobs:
     permissions:
       contents: write
     # Release on default-branch push or manual dispatch (dispatch inputs are unreliable on this fork).
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.repository.default_branch)) }}
+    if: ${{ success() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     needs: [package]
     concurrency:
